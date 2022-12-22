@@ -1,5 +1,7 @@
 package org.go4j;
 
+import java.util.stream.IntStream;
+
 public class Select {
     public static class Case {
         private final Channel<?> channel;
@@ -11,13 +13,30 @@ public class Select {
         }
     }
 
-    public static Case of(Channel<?> channel, Runnable runnable) {
+    public static Case ofCase(Channel<?> channel, Runnable runnable) {
         return new Case(channel, runnable);
     }
 
-    public static void on(Runnable def, Case ...cases) {
-        for (Case caze : cases) {
-            if (caze.channel.hasNext()) {
+    private static void shuffle(int[] arr) {
+        for (int i = 0;i < arr.length;i++) {
+            int rnd = (int)(Math.random() * arr.length);
+
+            int temp = arr[i];
+
+            arr[i] = arr[rnd];
+            arr[rnd] = temp;
+        }
+    }
+
+    public static void of(Runnable def, Case ...cazes) {
+        int[] arr = IntStream.range(0, cazes.length).toArray();
+
+        shuffle(arr);
+
+        for (int i = 0;i < arr.length;i++) {
+            Case caze = cazes[i];
+
+            if (caze.channel.waitFor()) {
                 caze.runable.run();
 
                 return;

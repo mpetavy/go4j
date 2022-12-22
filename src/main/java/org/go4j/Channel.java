@@ -5,11 +5,11 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class Channel<T> implements AutoCloseable, Iterable<T> {
-    private int count;
-    private boolean isClosed = false;
-    private boolean canRead = false;
-    private boolean canWrite = false;
+    private final int count;
     private final List<T> list = new ArrayList<>();
+    private final boolean canRead;
+    private final boolean canWrite;
+    private boolean isClosed = false;
 
     public Channel() {
         this(0);
@@ -34,7 +34,7 @@ public class Channel<T> implements AutoCloseable, Iterable<T> {
         return new Iterator<>() {
             @Override
             public boolean hasNext() {
-                return Channel.this.hasNext();
+                return Channel.this.waitFor();
             }
 
             @Override
@@ -48,7 +48,7 @@ public class Channel<T> implements AutoCloseable, Iterable<T> {
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(new Iterator<>() {
             @Override
             public boolean hasNext() {
-                return Channel.this.hasNext();
+                return Channel.this.waitFor();
             }
 
             @Override
@@ -77,11 +77,11 @@ public class Channel<T> implements AutoCloseable, Iterable<T> {
         }
     }
 
-    public boolean isCanRead() {
+    public boolean canRead() {
         return canRead;
     }
 
-    public boolean isCanWrite() {
+    public boolean canWrite() {
         return canWrite;
     }
 
@@ -105,7 +105,7 @@ public class Channel<T> implements AutoCloseable, Iterable<T> {
         }
     }
 
-    boolean hasNext() {
+    boolean waitFor() {
         synchronized (list) {
             while (true) {
                 if (!list.isEmpty()) {
@@ -127,10 +127,9 @@ public class Channel<T> implements AutoCloseable, Iterable<T> {
 
     public void write(T item) throws ChannelException {
         verifyWritable();
+        verifyClosed();
 
         synchronized (list) {
-            verifyClosed();
-
             list.add(item);
 
             list.notify();

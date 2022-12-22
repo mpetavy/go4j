@@ -1,13 +1,11 @@
 package org.go4j;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-
+import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import org.junit.jupiter.api.Test;
 
-import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -30,38 +28,40 @@ public class SelectTest {
         }
 
         while (!all.isClosed()) {
-            Select.on(() -> {
-                all.close();
-            }, cases.toArray(Select.Case[]::new));
+            Select.of(all::close, cases.toArray(Select.Case[]::new));
         }
 
-        int sum = all.stream().collect(Collectors.summingInt(Integer::intValue));
+        int sum = all.stream().mapToInt(Integer::intValue).sum();
 
         assertEquals(9, sum);
     }
 
     @Test
-    void test() {
-        Channel<Integer> c0 = new Channel<>(1);
-        c0.write(8);
+    void testTimer() {
+        Channel<Integer> c0 = new  Channel<>(1);
+        c0.write(5);
         c0.close();
         Channel<Integer> c1 = new Channel<>(1);
-        c1.write(15);
+        c1.write(7);
         c1.close();
 
         Channel<Boolean> quit = new Channel<>();
         Channel<Boolean> timer = Go4j.after(1000);
 
+        Channel<Integer> all = new Channel<>(9);
+
         while (!quit.isClosed()) {
-            Select.on(null,
-                      Select.of(c0, () -> System.out.println(c0.read())),
-                      Select.of(c1, () -> System.out.println(c1.read())),
-                      Select.of(timer,() -> {
-                          quit.close();
-                      })
+            Select.of(null,
+                      Select.ofCase(c0, () -> all.write(c0.read())),
+                      Select.ofCase(c1, () -> all.write(c1.read())),
+                      Select.ofCase(timer, quit::close)
             );
         }
 
-        System.out.println("end");
+        all.close();
+
+        int sum = all.stream().mapToInt(Integer::intValue).sum();
+
+        assertEquals(12, sum);
     }
 }
