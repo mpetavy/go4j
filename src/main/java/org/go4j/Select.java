@@ -41,26 +41,6 @@ public class Select {
         }
     }
 
-    public static void of1(Runnable def, Case... cazes) {
-        int[] arr = IntStream.range(0, cazes.length).toArray();
-
-        shuffle(arr);
-
-        for (int i = 0; i < arr.length; i++) {
-            Case caze = cazes[i];
-
-            if (caze.channel.waitFor()) {
-                caze.runable.run();
-
-                return;
-            }
-        }
-
-        if (def != null) {
-            def.run();
-        }
-    }
-
     public static void of(Runnable def, Case... cazes) {
         if (def != null) {
             int[] arr = IntStream.range(0, cazes.length).toArray();
