@@ -24,7 +24,7 @@ public class Waitgroup {
         }
     }
 
-    public void waitFor() {
+    public void await() {
         synchronized (lock) {
             if (count == 0) {
                 return;

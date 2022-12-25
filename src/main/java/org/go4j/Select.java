@@ -20,7 +20,7 @@ public class Select {
         }
 
         public void run() {
-            if (channel.waitFor() && !Thread.interrupted()) {
+            if (channel.await() && !Thread.interrupted()) {
                 response.write(this);
             }
         }
@@ -50,7 +50,7 @@ public class Select {
             for (int i = 0; i < arr.length; i++) {
                 Case caze = cazes[i];
 
-                if (caze.channel.waitFor()) {
+                if (caze.channel.await()) {
                     caze.runable.run();
 
                     return;

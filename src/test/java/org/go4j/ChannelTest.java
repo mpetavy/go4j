@@ -1,9 +1,9 @@
 package org.go4j;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.util.Iterator;
 import java.util.Timer;
@@ -11,14 +11,9 @@ import java.util.TimerTask;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
-
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
+import static org.junit.jupiter.api.Assertions.*;
 
 @MicronautTest
 public class ChannelTest {
@@ -36,27 +31,29 @@ public class ChannelTest {
 
     @Test
     void testSimple() {
-        Channel<Integer> ch = new Channel<>();
+        try (Channel<Integer> ch = new Channel<>()) {
 
-        Timer t = new Timer();
-        t.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                int value = ch.read();
+            Timer t = new Timer();
+            t.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    int value = ch.read();
 
-                assertEquals(42, value);
-            }
+                    assertEquals(42, value);
+                }
 
-        }, 100, 100);
+            }, 100, 100);
 
-        ch.write(42);
+            ch.write(42);
+        }
     }
 
     @Test
     void nonBlocking() {
-        Channel<Integer> ch = new Channel<>(1);
+        try (Channel<Integer> ch = new Channel<>(1)) {
 
-        ch.write(42);
+            ch.write(42);
+        }
     }
 
     @Test
@@ -74,13 +71,13 @@ public class ChannelTest {
             });
         }
 
-        wg.waitFor();
+        wg.await();
 
         ch.close();
 
-        int sum = ch.stream().collect(Collectors.summingInt(Integer::intValue));
+        int sum = ch.stream().mapToInt(Integer::intValue).sum();
 
-        assertEquals(9,sum);
+        assertEquals(9, sum);
     }
 
     @Test
@@ -97,6 +94,7 @@ public class ChannelTest {
     @Timeout(1)
     void multipleClose() {
         Channel<Integer> ch = new Channel<>();
+
         Exception thrown = Assertions.assertThrows(ChannelException.class, () -> {
             ch.close();
             ch.close();
@@ -118,9 +116,7 @@ public class ChannelTest {
     @Test
     @Timeout(1)
     void invalid() {
-        Exception thrown = Assertions.assertThrows(ChannelException.class, () -> {
-            new Channel<>(0, false, false);
-        });
+        Exception thrown = Assertions.assertThrows(ChannelException.class, () -> new Channel<>(0, false, false));
 
         assertEquals(ChannelException.msgInvalid, thrown.getMessage());
     }
@@ -128,13 +124,12 @@ public class ChannelTest {
     @Test
     @Timeout(1)
     void onlyReadable() {
-        Channel<Integer> ch = new Channel<>(0, true, false);
+        try (Channel<Integer> ch = new Channel<>(0, true, false)) {
 
-        Exception thrown = Assertions.assertThrows(ChannelException.class, () -> {
-            ch.write(42);
-        });
+            Exception thrown = Assertions.assertThrows(ChannelException.class, () -> ch.write(42));
 
-        assertEquals(ChannelException.msgNotWritable, thrown.getMessage());
+            assertEquals(ChannelException.msgNotWritable, thrown.getMessage());
+        }
     }
 
     @Test
@@ -143,9 +138,7 @@ public class ChannelTest {
         Channel<Integer> ch = new Channel<>(0, false, true);
         ch.close();
 
-        Exception thrown = Assertions.assertThrows(ChannelException.class, () -> {
-            ch.read();
-        });
+        Exception thrown = Assertions.assertThrows(ChannelException.class, ch::read);
 
         assertEquals(ChannelException.msgNotReadable, thrown.getMessage());
     }
@@ -162,46 +155,48 @@ public class ChannelTest {
     @Test
     @Timeout(1)
     void readSimple() {
-        Channel<Integer> ch = new Channel<>(0);
-        new Thread(() -> {
-            ch.write(42);
-        }).start();
+        try (Channel<Integer> ch = new Channel<>(0)) {
 
-        int value = ch.read();
+            Go4j.go(() -> ch.write(42));
 
-        assertEquals(42, value);
+            int value = ch.read();
+
+            assertEquals(42, value);
+        }
     }
 
     @Test
     @Timeout(1)
     void readBlocking() {
-        Channel<Integer> ch = new Channel<>(0);
-        new Thread(() -> {
-            Go4j.sleep(100l);
+        try (Channel<Integer> ch = new Channel<>(0)) {
 
-            ch.write(42);
-        }).start();
+            Go4j.go(() -> {
+                Go4j.sleep(100L);
 
-        long start = System.currentTimeMillis();
+                ch.write(42);
+            });
 
-        int value = ch.read();
+            long start = System.currentTimeMillis();
 
-        assertEquals(42, value);
-        assertTrue(System.currentTimeMillis() - start > 100);
+            int value = ch.read();
+
+            assertEquals(42, value);
+            assertTrue(System.currentTimeMillis() - start > 100);
+        }
     }
 
     @Test
     @Timeout(1)
     void readList() {
-        Channel<Integer> ch = new Channel<>(0);
-        new Thread(() -> {
-            IntStream.range(0, 1000).forEach(ch::write);
-        }).start();
+        try (Channel<Integer> ch = new Channel<>(0)) {
 
-        for (int i = 0; i < 1000; i++) {
-            int value = ch.read();
+            Go4j.go(() -> IntStream.range(0, 1000).forEach(ch::write));
 
-            assertEquals(i, value);
+            for (int i = 0; i < 1000; i++) {
+                int value = ch.read();
+
+                assertEquals(i, value);
+            }
         }
     }
 
@@ -209,16 +204,15 @@ public class ChannelTest {
     @Timeout(1)
     void readIterator() {
         Channel<Integer> ch = new Channel<>(0);
-        new Thread(() -> {
+
+        Go4j.go(() -> {
             IntStream.range(0, 3).forEach(ch::write);
 
             ch.close();
-        }).start();
+        });
 
         int i = 0;
-        for (Iterator<Integer> iter = ch.iterator(); iter.hasNext(); ) {
-            int value = iter.next();
-
+        for (int value : ch) {
             assertEquals(i, value);
 
             i++;
@@ -231,9 +225,7 @@ public class ChannelTest {
         Channel<Integer> ch = new Channel<>(0);
         ch.close();
 
-        Exception thrown = Assertions.assertThrows(ChannelException.class, () -> {
-            ch.write(42);
-        });
+        Exception thrown = Assertions.assertThrows(ChannelException.class, () -> ch.write(42));
 
         assertEquals(ChannelException.msgClosed, thrown.getMessage());
     }
@@ -246,22 +238,20 @@ public class ChannelTest {
         Waitgroup wg = new Waitgroup();
         for (int i = 0; i < 3; i++) {
             wg.add();
-            Go4j.run(() -> {
+            Go4j.go(() -> {
                 IntStream.range(0, 5).forEach(ch::write);
                 wg.done();
             });
         }
 
-        Go4j.run(() -> {
-            wg.waitFor();
+        Go4j.go(() -> {
+            wg.await();
 
             ch.close();
         });
 
         int i = 0;
-        for (Iterator<Integer> iter = ch.iterator(); iter.hasNext(); ) {
-            iter.next();
-
+        for (Integer integer : ch) {
             i++;
         }
 
@@ -281,13 +271,12 @@ public class ChannelTest {
     void readBufferedBlocking() {
         Channel<Integer> ch = new Channel<>(1);
 
-        Thread blocker = new Thread(() -> {
+        Thread blocker = Go4j.async(() -> {
             ch.write(42);
             ch.write(4242);
         });
-        blocker.start();
 
-        Go4j.sleep(100l);
+        Go4j.sleep(100L);
 
         assertEquals(Thread.State.WAITING, blocker.getState());
 

@@ -2,6 +2,7 @@ package org.go4j;
 
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,7 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @MicronautTest
 public class SelectTest {
     @Test
-    void testSimple() {
+    @Timeout(1)
+    void testWithDefault() {
         Channel<Integer> all = new Channel<>(9);
 
         List<Select.Case> cases = new ArrayList<>();
@@ -21,7 +23,7 @@ public class SelectTest {
             Channel<Integer> ch = new Channel<>();
             cases.add(new Select.Case(ch, () -> all.write(ch.read())));
 
-            Go4j.run(() -> {
+            Go4j.go(() -> {
                 IntStream.range(0, 3).forEach(ch::write);
                 ch.close();
             });
@@ -37,7 +39,8 @@ public class SelectTest {
     }
 
     @Test
-    void testTimer() {
+    @Timeout(1)
+    void testWithTimer() {
         Channel<Integer> c0 = new  Channel<>(1);
         c0.write(5);
         c0.close();
@@ -46,7 +49,7 @@ public class SelectTest {
         c1.close();
 
         Channel<Boolean> quit = new Channel<>();
-        Channel<Boolean> timer = Go4j.after(1000);
+        Channel<Boolean> timer = Go4j.after(500);
 
         Channel<Integer> all = new Channel<>(9);
 

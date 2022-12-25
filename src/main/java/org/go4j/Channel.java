@@ -34,7 +34,7 @@ public class Channel<T> implements AutoCloseable, Iterable<T> {
         return new Iterator<>() {
             @Override
             public boolean hasNext() {
-                return Channel.this.waitFor();
+                return Channel.this.await();
             }
 
             @Override
@@ -48,7 +48,7 @@ public class Channel<T> implements AutoCloseable, Iterable<T> {
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(new Iterator<>() {
             @Override
             public boolean hasNext() {
-                return Channel.this.waitFor();
+                return Channel.this.await();
             }
 
             @Override
@@ -105,7 +105,7 @@ public class Channel<T> implements AutoCloseable, Iterable<T> {
         }
     }
 
-    boolean waitFor() {
+    boolean await() {
         synchronized (list) {
             while (true) {
                 if (!list.isEmpty()) {
